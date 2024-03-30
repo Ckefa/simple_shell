@@ -1,42 +1,40 @@
 #include "shell.h"
-/**
- * main - entry point
- * @ac: arg count
- * @av: arg vector
- *
- * Return: 0 on success, 1 on error
- */
-int main(int ac, char **av)
-{
-	info_t info[] = { INFO_INIT };
-	int fd = 2;
 
-	asm ("mov %1, %0\n\t"
-			"add $3, %0"
-			: "=r" (fd)
-			: "r" (fd));
-	if (ac == 2)
-	{
-		fd = open(av[1], O_RDONLY);
-		if (fd == -1)
+/**
+ * main - implements a simple shell
+ *
+ * Return: EXIT_SUCCESS.
+ */
+int main(void)
+{
+	char *input;
+	char **args;
+	int status;
+
+	/* Register signal handlers */
+	signal(SIGINT, handle_sigint);
+	signal(SIGQUIT, handle_sigquit);
+	signal(SIGTSTP, handle_sigstp);
+
+	do {
+		input = get_input();
+		if (!input || !*input)/* EOF detected, exit the loop */
+			break;
+
+		args = tokenize_input(input);
+		if (!args || !*args)
 		{
-			if (errno == EACCES)
-				exit(126);
-			if (errno == ENOENT)
-			{
-				_eputs(av[0]);
-				_eputs(": 0: Can't open ");
-				_eputs(av[1]);
-				_eputchar('\n');
-				_eputchar(BUF_FLUSH);
-				exit(127);
-			}
-			return (EXIT_FAILURE);
+			free(input);
+			free_tokens(args);
+			continue;
 		}
-		info->readfd = fd;
-	}
-	populate_env_list(info);
-	read_history(info);
-	hsh(info, av);
+		status = execute(args);
+		free(input);
+		free_tokens(args);
+
+		/* Set status to 1 to continue the loop */
+		status = 1;
+	} while (status);
+
 	return (EXIT_SUCCESS);
 }
