@@ -1,40 +1,53 @@
 #include "shell.h"
 
 /**
- * main - implements a simple shell
+ * main - Entry point
  *
- * Return: EXIT_SUCCESS.
+ * Description: 'shell main function'
+ *
+ * Return: Always 0 (Success)
  */
+
 int main(void)
 {
-	char *input;
-	char **args;
+	char buffer[BUFFER_SIZE];
+	ssize_t read_chars;
+	pid_t child_pid;
 	int status;
 
-	/* Register signal handlers */
-	signal(SIGINT, handle_sigint);
-	signal(SIGQUIT, handle_sigquit);
-	signal(SIGTSTP, handle_sigstp);
-
-	do {
-		input = get_input();
-		if (!input || !*input)/* EOF detected, exit the loop */
-			break;
-
-		args = tokenize_input(input);
-		if (!args || !*args)
+	while (1)
+	{
+		write(STDOUT_FILENO, "$ ", 2);
+		read_chars = read(STDIN_FILENO, buffer, BUFFER_SIZE);
+		if (read_chars == 0)
 		{
-			free(input);
-			free_tokens(args);
-			continue;
+			write(STDOUT_FILENO, "\n", 1);
+			break;
 		}
-		status = execute(args);
-		free(input);
-		free_tokens(args);
+		buffer[read_chars - 1] = '\0';
+		child_pid = fork();
+		if (child_pid == -1)
+		{
+			perror("Error forking process");
+			_exit(EXIT_FAILURE);
+		}
+		if (child_pid == 0)
+		{
+			close(STDIN_FILENO);
+			execute_command(buffer);
+			_exit(EXIT_FAILURE);
+		} else
+		{
+			waitpid(child_pid, &status, 0);
+			if (WIFEXITED(status) && WEXITSTATUS(status) != 0)
+			{
+				if (WEXITSTATUS(status) != EXIT_FAILURE)
+				{
+					write(STDERR_FILENO, "./hsh: No such file or directory\n", 33);
+				}
+			}
+		}
+	}
 
-		/* Set status to 1 to continue the loop */
-		status = 1;
-	} while (status);
-
-	return (EXIT_SUCCESS);
+	return (0);
 }
